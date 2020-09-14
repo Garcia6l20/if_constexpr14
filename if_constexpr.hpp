@@ -66,6 +66,12 @@ namespace ic {
         return detail::if_constexpr<result, TrueT, decltype(else_.then_)>(std::forward<TrueT>(trueT), std::move(else_.then_));
     }
 
+    template<bool result, typename TrueT>
+    constexpr auto else_if_(TrueT &&trueT) {
+        auto nop = []{};
+        return detail::if_constexpr<result, TrueT, decltype(nop)>(std::forward<TrueT>(trueT), std::move(nop));
+    }
+
     template <typename ThenT>
     constexpr auto else_(ThenT &&then) {
         return detail::else_<ThenT>(std::forward<ThenT>(then));
