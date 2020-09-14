@@ -44,6 +44,17 @@ namespace ic {
 
         template <template <class...> class Template, class... Args>
         struct is_specialization<Template<Args...>, Template> : std::true_type {};
+
+        template <bool result, typename CaseT>
+        struct case_constexpr {
+            static constexpr bool value = result;
+            CaseT case_;
+            constexpr explicit case_constexpr(CaseT &&case_)
+                : case_{std::move(case_)} {}
+            constexpr auto operator()() {
+                return case_();
+            }
+        };
     }
 
     template<bool result, typename TrueT, typename ElseT,
@@ -76,4 +87,42 @@ namespace ic {
     constexpr auto else_(ThenT &&then) {
         return detail::else_<ThenT>(std::forward<ThenT>(then));
     }
+
+    template <bool result, typename CaseT>
+    constexpr auto case_(CaseT &&case_) {
+        return detail::case_constexpr<result, CaseT>{std::forward<CaseT>(case_)};
+    }
+
+    template <typename DefaultT>
+    constexpr auto default_(DefaultT &&default_) {
+        return detail::case_constexpr<true, DefaultT>{std::forward<DefaultT>(default_)};
+    }
+
+    template <typename LastT,
+        std::enable_if_t<LastT::value, int> = 0>
+    constexpr auto switch_(LastT &&last) {
+        return last();
+    }
+
+    template <typename LastT,
+        std::enable_if_t<!LastT::value, int> = 0>
+    constexpr auto switch_(LastT &&last) {
+    }
+
+    template <typename FirstT, typename...CasesT,
+        std::enable_if_t<FirstT::value, int> = 0>
+    constexpr auto switch_(FirstT &&first, CasesT &&...cases) {
+        return first();
+    }
+
+    template <typename FirstT, typename...CasesT,
+        std::enable_if_t<!FirstT::value, int> = 0>
+    constexpr auto switch_(FirstT &&first, CasesT &&...cases) {
+        return switch_<CasesT...>(std::forward<CasesT>(cases)...);
+    }
+//
+//    template <typename...CasesT>
+//    constexpr auto switch_(CasesT &&...cases) {
+//
+//    }
 }
