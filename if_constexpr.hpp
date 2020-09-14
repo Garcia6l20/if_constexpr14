@@ -14,9 +14,9 @@ namespace ic {
             TrueT true_;
             FalseT false_;
 
-            constexpr if_constexpr(TrueT &&trueT, FalseT &&falseT = nullptr) : true_{std::move(trueT)},
-                                                                     false_{std::move(falseT)} {
-            }
+            constexpr explicit if_constexpr(TrueT trueT, FalseT falseT = nullptr)
+                : true_{std::move(trueT)}
+                , false_{std::move(falseT)} {}
 
             template<bool check = result, std::enable_if_t<check, int> = 0>
             constexpr auto operator()() {
@@ -31,31 +31,43 @@ namespace ic {
             template<bool check = result, std::enable_if_t<!check && std::is_same<FalseT, std::nullptr_t>::value, int> = 0>
             constexpr void operator()() {}
         };
+
+        template <typename ThenT>
+        struct else_ {
+            ThenT then_;
+            constexpr explicit else_(ThenT then)
+                : then_{std::move(then)} {}
+        };
+
+        template <class T, template <class...> class Template>
+        struct is_specialization : std::false_type {};
+
+        template <template <class...> class Template, class... Args>
+        struct is_specialization<Template<Args...>, Template> : std::true_type {};
     }
 
-//    template <typename ElifT, typename...RestT>
-//    struct else_if_ {
-//        constexpr auto operator()(ElifT &&elif, RestT...rest) {
-//
-//        }
-//    }
-//
-//    template<bool result, typename TrueT, typename ElifT, typename...RestT>
-//    constexpr auto _if_(TrueT &&trueT, else_if<ElifT> &&elif, RestT &&...rest) {
-//        return detail::if_<result, TrueT, RestT...>(std::forward<TrueT>(trueT), std::forward<RestT>(rest)...)();
-//    }
-//
-//    template<bool result, typename TrueT, typename...RestT>
-//    constexpr auto if_(TrueT &&trueT, RestT &&...rest) {
-//        return detail::_if_<result, TrueT, RestT...>(std::forward<TrueT>(trueT), std::forward<RestT>(rest)...)();
-//    }
-
-    template<bool result, typename TrueT, typename FalseT>
-    constexpr auto if_(TrueT &&trueT, FalseT &&falseT) {
-        return detail::if_constexpr<result, TrueT, FalseT>(std::forward<TrueT>(trueT), std::forward<FalseT>(falseT))();
+    template<bool result, typename TrueT, typename ElseT,
+        std::enable_if_t<detail::is_specialization<ElseT, detail::else_>::value, int> = 0>
+    constexpr auto if_(TrueT &&trueT, ElseT && else_) {
+        return detail::if_constexpr<result, TrueT, decltype(else_.then_)>(std::forward<TrueT>(trueT), std::move(else_.then_))();
     }
-    template<bool result, typename TrueT>
-    constexpr auto if_(TrueT &&trueT) {
-        return detail::if_constexpr<result, TrueT>(std::forward<TrueT>(trueT))();
+
+    template<bool result, typename TrueT, typename ElseT,
+        std::enable_if_t<!detail::is_specialization<ElseT, detail::else_>::value, int> = 0>
+    constexpr auto if_(TrueT &&trueT, ElseT && else_) {
+        auto fwd = [else_ = std::forward<decltype(else_)>(else_)] () mutable {
+            return else_();
+        };
+        return detail::if_constexpr<result, TrueT, decltype(fwd)>(std::forward<TrueT>(trueT), std::move(fwd))();
+    }
+
+    template<bool result, typename TrueT, typename ElseT>
+    constexpr auto else_if_(TrueT &&trueT, ElseT && else_) {
+        return detail::if_constexpr<result, TrueT, decltype(else_.then_)>(std::forward<TrueT>(trueT), std::move(else_.then_));
+    }
+
+    template <typename ThenT>
+    constexpr auto else_(ThenT &&then) {
+        return detail::else_<ThenT>(std::forward<ThenT>(then));
     }
 }
